@@ -35,10 +35,15 @@ In this step, you use the AWS console to create the AWS Identity and Access Mana
 First, you need to create a custom policy to allow your instances and Lambda function to complete lifecycle hooks and publish to the SNS topic set up in Step 1.
 
 1)    Log into the IAM console.
+
 2)    Choose Policies, Create Policy
+
 3)    For Create Your Own Policy, choose Select.
+
 4)    For Policy Name, type “ASGBackupPolicy”.
+
 5)    For Policy Document, paste the following policy which allows to complete a lifecycle hook:
+
 ```JSON
 {
   "Version": "2012-10-17",
@@ -75,19 +80,28 @@ Create the role for the Lambda function.
 In this step, you create the Auto Scaling group and configure the lifecycle hook.
 
 1)    Log into the EC2 console.
+
 2)    Choose Launch Configurations, Create launch configuration.
+
 3)    Select the latest Amazon Linux AMI and whatever instance type you prefer, and choose Next: Configuration details.
+
 4)    For Name, type “ASGBackupLaunchConfiguration”.
+
 5)    For IAM role, choose “instance-role” and expand Advanced Details.
+
 6)    For User data, add the following lines to install and launch the SSM agent at instance boot:
+
 ```
     #!/bin/bash
     sudo yum install amazon-ssm-agent -y
     sudo /sbin/start amazon-ssm-agent
 ```
 7)    Choose Skip to review, Create launch configuration, select your key pair, and then choose Create launch configuration.
+
 8)    Choose Create an Auto Scaling group using this launch configuration.
+
 9)    For Group name, type “ASGBackup”.
+
 10)    Select your VPC and at least one subnet and then choose Next: Configuration scaling policies, Review, and Create Auto Scaling group.
 
 Your Auto Scaling group is now created and you need to add the lifecycle hook named “ASGBackup” by using the AWS CLI:
@@ -157,9 +171,13 @@ Here is the document:
 }
 ```
 1)    Log into the EC2 console.
+
 2)    Choose Command History, Documents, Create document.
+
 3)    For Document name, enter “ASGLogBackup”.
+
 4)    For Content, add the above JSON, modified for your environment.
+
 5)    Choose Create document.
 
 ##Step 6 – Create the Lambda function
@@ -170,13 +188,21 @@ The Lambda function uses modules included in the Python 2.7 Standard Library and
 - Sends the command to the instance that is being terminated. It checks for the status of EC2 Run Command and if it fails, the Lambda function completes the lifecycle hook.
 
 1)    Log in to the Lambda console.
+
 2)    Choose Create Lambda function.
+
 3)    For Select blueprint, choose Skip, Next.
+
 4)    For Name, type “lambda_backup” and for Runtime, choose Python 2.7.
+
 5)    For Lambda function code, paste the Lambda function from the [link] GitHub repository.
+
 6)    Choose Choose an existing role.
+
 7)    For Role, choose lambda-role (previously created).
+
 8)    In Advanced settings, configure Timeout for 5 minutes.
+
 9)    Choose Next, Create function.
 
 Your Lambda function is now created.
@@ -186,11 +212,17 @@ Your Lambda function is now created.
 Create an event rule to trigger the Lambda function.
 
 1)    Log in to the CloudWatch console.
+
 2)    Choose Events, Create rule.
+
 3)    For Select event source, choose Auto Scaling.
+
 4)    For Specific instance event(s), choose EC2 Instance-terminate Lifecycle Action and for Specific group name(s), choose ASGBackup.
+
 5)    For Targets, choose Lambda function and for Function, select the Lambda function that you previously created, “lambda_backup”.
+
 6)    Choose Configure details.
+
 7)    In Rule definition, type a name and choose Create rule.
 
 Your event rule is now created; whenever your Auto Scaling group “ASGBackup” starts terminating an instance, your Lambda function will be triggered.
