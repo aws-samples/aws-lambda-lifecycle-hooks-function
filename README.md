@@ -18,7 +18,7 @@ The example provided in this post works precisely this way. Lambda gathers the i
 
 Make sure that you have the latest version of the AWS CLI installed locally. For more information, see Getting Set Up with the AWS Command Line Interface.
 
-#Step 1 – Create an SNS topic to receive the result of the backup
+##Step 1 – Create an SNS topic to receive the result of the backup
 
 In this step, you create an Amazon SNS topic in the region in which to run your Auto Scaling group. This topic allows EC2 Run Command to send you the outcome of the backup. The output of the aws iam create-topic command includes the ARN. Save the ARN, as you need it for future steps.
 ```
@@ -29,7 +29,7 @@ Now subscribe your email address as the endpoint for SNS to receive messages.
 aws sns subscribe --topic-arn <enter-your-sns-arn-here> --protocol email --notification-endpoint <your_email>
 ```
 
-#Step 2 – Create an IAM role for your instances and your Lambda function
+##Step 2 – Create an IAM role for your instances and your Lambda function
 
 In this step, you use the AWS console to create the AWS Identity and Access Management (IAM) role for your instances and Lambda to enable them to run the SSM agent, upload your files to your S3 bucket, and complete the lifecycle hook.
 First, you need to create a custom policy to allow your instances and Lambda function to complete lifecycle hooks and publish to the SNS topic set up in Step 1.
@@ -70,7 +70,7 @@ Create the role for the Lambda function.
 4)    Add the policies AmazonSSMFullAccess, ASGBackupPolicy, and AWSLambdaBasicExecutionRole.
 5)    Choose Next Step, Create Role.
 
-#Step 3 – Create an Auto Scaling group and configure the lifecycle hook
+##Step 3 – Create an Auto Scaling group and configure the lifecycle hook
 
 In this step, you create the Auto Scaling group and configure the lifecycle hook.
 
@@ -95,14 +95,14 @@ Your Auto Scaling group is now created and you need to add the lifecycle hook na
 aws autoscaling put-lifecycle-hook --lifecycle-hook-name ASGBackup --auto-scaling-group-name ASGBackup --lifecycle-transition autoscaling:EC2_INSTANCE_TERMINATING --heartbeat-timeout 3600
 ```
 
-#Step 4 – Create an S3 bucket for files
+##Step 4 – Create an S3 bucket for files
 
 Create an S3 bucket where your data will be saved, or use an existing one. To create a new one, you can use this AWS CLI command:
 ```
 aws s3api create-bucket --bucket <your_bucket_name>
 ```
 
-#Step 5 – Create the SSM document
+##Step 5 – Create the SSM document
 
 The following JSON document archives the files in “BACKUPDIRECTORY” and then copies them to your S3 bucket “S3BUCKET”. Every time this command completes its execution, a SNS message is sent to the SNS topic specified by the “SNSTARGET” variable and completes the lifecycle hook.
 
@@ -162,7 +162,7 @@ Here is the document:
 4)    For Content, add the above JSON, modified for your environment.
 5)    Choose Create document.
 
-#Step 6 – Create the Lambda function
+##Step 6 – Create the Lambda function
 
 The Lambda function uses modules included in the Python 2.7 Standard Library and the AWS SDK for Python module (boto3), which is preinstalled as part of Lambda. The function code performs the following:
 
@@ -181,7 +181,7 @@ The Lambda function uses modules included in the Python 2.7 Standard Library and
 
 Your Lambda function is now created.
 
-#Step 7 – Configure CloudWatch Events to trigger the Lambda function
+##Step 7 – Configure CloudWatch Events to trigger the Lambda function
 
 Create an event rule to trigger the Lambda function.
 
@@ -195,7 +195,7 @@ Create an event rule to trigger the Lambda function.
 
 Your event rule is now created; whenever your Auto Scaling group “ASGBackup” starts terminating an instance, your Lambda function will be triggered.
 
-#Step 8 – Test the environment
+##Step 8 – Test the environment
 
 From the Auto Scaling console, you can change the desired capacity and the minimum for your Auto Scaling group to 0 so that the instance running starts being terminated. After the termination starts, you can see from Instances tab that the instance lifecycle status changed to Termination:Wait. While the instance is in this state, the Lambda function and the command are executed.
 
