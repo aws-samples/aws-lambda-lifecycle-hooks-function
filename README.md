@@ -62,17 +62,25 @@ First, you need to create a custom policy to allow your instances and Lambda fun
 Create the role for EC2.
 
 1)    In the left navigation pane, choose Roles, Create New Role.
+
 2)    For Role Name, type “instance-role” and choose Next Step.
+
 3)    Choose Amazon EC2 and choose Next Step.
+
 4)    Add the policies AmazonEC2RoleforSSM and ASGBackupPolicy.
+
 5)    Choose Next Step, Create Role.
 
 Create the role for the Lambda function.
 
 1)    In the left navigation pane, choose Roles, Create New Role.
+
 2)    For Role Name, type “lambda-role” and choose Next Step.
+
 3)    Choose AWS Lambda and choose Next Step.
+
 4)    Add the policies AmazonSSMFullAccess, ASGBackupPolicy, and AWSLambdaBasicExecutionRole.
+
 5)    Choose Next Step, Create Role.
 
 ##Step 3 – Create an Auto Scaling group and configure the lifecycle hook
