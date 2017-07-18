@@ -180,7 +180,9 @@ Here is the document:
 ```
 1)    Log into the EC2 console.
 
-2)    Choose Command History, Documents, Create document.
+2)    Go to System Manager Shared Resources.
+
+2)    Choose Documents, Create document.
 
 3)    For Document name, enter “ASGLogBackup”.
 
