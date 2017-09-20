@@ -155,7 +155,7 @@ Here is the document:
             "S3BUCKET='<your_bucket_name>'",
             "SNSTARGET='arn:aws:sns:'${REGION}':<your_account_id>:<your_sns_ backupoutcome_topic>'",           
             "INSTANCEID=$(curl http://169.254.169.254/latest/meta-data/instance-id)",
-            "REGION=$(curl http://169.254.169.254/latest/meta-data/placement/availability-zone)",
+            "REGION=$(curl -s http://169.254.169.254/latest/dynamic/instance-identity/document | grep '\"region\"' | cut -d\" -f4)",
             "REGION=${REGION::-1}",
             "HOOKRESULT='CONTINUE'",
             "MESSAGE=''",
