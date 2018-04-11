@@ -1,24 +1,24 @@
 # aws-lambda-lifecycle-hooks-function
-#Using Auto Scaling lifecycle hooks, Lambda, and EC2 Run Command
+# Using Auto Scaling lifecycle hooks, Lambda, and EC2 Run Command
 
-##Introduction
+## Introduction
 
 When an Auto Scaling group needs to scale in, replace an unhealthy instance, or re-balance Availability Zones, the instance is terminated, data on the instance is lost and any on-going tasks are interrupted. This is normal behavior but sometimes there are use cases when you might need to run some commands, wait for a task to complete, or execute some operations (for example, backing up logs) before the instance is terminated. So Auto Scaling introduced lifecycle hooks, which give you more control over timing after an instance is marked for termination.
 In this post, I explore how you can leverage Auto Scaling lifecycle hooks, AWS Lambda, and Amazon EC2 Run Command to back up your data automatically before the instance is terminated. The solution illustrated allows you to back up your data to an S3 bucket; however, with minimal changes, it is possible to adapt this design to carry out any task that you prefer before the instance gets terminated, for example, waiting for a worker to complete a task before terminating the instance.
 
  
-##Using Auto Scaling lifecycle hooks, Lambda, and EC2 Run Command
+## Using Auto Scaling lifecycle hooks, Lambda, and EC2 Run Command
 
 You can configure your Auto Scaling group to add a lifecycle hook when an instance is selected for termination. The lifecycle hook enables you to perform custom actions as Auto Scaling launches or terminates instances. In order to perform these actions automatically, you can leverage Lambda and EC2 Run Command to allow you to avoid the use of additional software and to rely completely on AWS resources.
 For example, when an instance is marked for termination, Amazon CloudWatch Events can execute an action based on that. This action can be a Lambda function to execute a remote command on the machine and upload your logs to your S3 bucket.
 EC2 Run Command enables you to run remote scripts through the agent running within the instance. You use this feature to back up the instance logs and to complete the lifecycle hook so that the instance is terminated.
 The example provided in this post works precisely this way. Lambda gathers the instance ID from CloudWatch Events and then triggers a remote command to back up the instance logs.
  
-##Set up the environment
+## Set up the environment
 
 Make sure that you have the latest version of the AWS CLI installed locally. For more information, see Getting Set Up with the AWS Command Line Interface.
 
-##Step 1 – Create an SNS topic to receive the result of the backup
+## Step 1 – Create an SNS topic to receive the result of the backup
 
 In this step, you create an Amazon SNS topic in the region in which to run your Auto Scaling group. This topic allows EC2 Run Command to send you the outcome of the backup. The output of the aws iam create-topic command includes the ARN. Save the ARN, as you need it for future steps.
 ```
@@ -29,7 +29,7 @@ Now subscribe your email address as the endpoint for SNS to receive messages.
 aws sns subscribe --topic-arn <enter-your-sns-arn-here> --protocol email --notification-endpoint <your_email>
 ```
 
-##Step 2 – Create an IAM role for your instances and your Lambda function
+## Step 2 – Create an IAM role for your instances and your Lambda function
 
 In this step, you use the AWS console to create the AWS Identity and Access Management (IAM) role for your instances and Lambda to enable them to run the SSM agent, upload your files to your S3 bucket, and complete the lifecycle hook.
 First, you need to create a custom policy to allow your instances and Lambda function to complete lifecycle hooks and publish to the SNS topic set up in Step 1.
@@ -83,7 +83,7 @@ Create the role for the Lambda function.
 
 5)    Choose Next Step, Create Role.
 
-##Step 3 – Create an Auto Scaling group and configure the lifecycle hook
+## Step 3 – Create an Auto Scaling group and configure the lifecycle hook
 
 In this step, you create the Auto Scaling group and configure the lifecycle hook.
 
@@ -117,14 +117,14 @@ Your Auto Scaling group is now created and you need to add the lifecycle hook na
 aws autoscaling put-lifecycle-hook --lifecycle-hook-name ASGBackup --auto-scaling-group-name ASGBackup --lifecycle-transition autoscaling:EC2_INSTANCE_TERMINATING --heartbeat-timeout 3600
 ```
 
-##Step 4 – Create an S3 bucket for files
+## Step 4 – Create an S3 bucket for files
 
 Create an S3 bucket where your data will be saved, or use an existing one. To create a new one, you can use this AWS CLI command:
 ```
 aws s3api create-bucket --bucket <your_bucket_name>
 ```
 
-##Step 5 – Create the SSM document
+## Step 5 – Create the SSM document
 
 The following JSON document archives the files in “BACKUPDIRECTORY” and then copies them to your S3 bucket “S3BUCKET”. Every time this command completes its execution, a SNS message is sent to the SNS topic specified by the “SNSTARGET” variable and completes the lifecycle hook.
 
@@ -190,7 +190,7 @@ Here is the document:
 
 5)    Choose Create document.
 
-##Step 6 – Create the Lambda function
+## Step 6 – Create the Lambda function
 
 The Lambda function uses modules included in the Python 2.7 Standard Library and the AWS SDK for Python module (boto3), which is preinstalled as part of Lambda. The function code performs the following:
 
@@ -217,7 +217,7 @@ The Lambda function uses modules included in the Python 2.7 Standard Library and
 
 Your Lambda function is now created.
 
-##Step 7 – Configure CloudWatch Events to trigger the Lambda function
+## Step 7 – Configure CloudWatch Events to trigger the Lambda function
 
 Create an event rule to trigger the Lambda function.
 
@@ -237,7 +237,7 @@ Create an event rule to trigger the Lambda function.
 
 Your event rule is now created; whenever your Auto Scaling group “ASGBackup” starts terminating an instance, your Lambda function will be triggered.
 
-##Step 8 – Test the environment
+## Step 8 – Test the environment
 
 From the Auto Scaling console, you can change the desired capacity and the minimum for your Auto Scaling group to 0 so that the instance running starts being terminated. After the termination starts, you can see from Instances tab that the instance lifecycle status changed to Termination:Wait. While the instance is in this state, the Lambda function and the command are executed.
 
