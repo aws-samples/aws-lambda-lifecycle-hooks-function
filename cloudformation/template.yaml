@@ -1,0 +1,220 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+
+Parameters:
+  Ec2KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: The key pair that controls access to the auto-scaled EC2 instances
+
+  Ec2Subnet:
+    Type: AWS::EC2::Subnet::Id
+    Description: The subnet that hosts the auto-scaled EC2 instances
+
+  Ec2IngressCidrIp:
+    Type: String
+    Description: The range of IP addresses that are granted SSH access to the
+      autoscaled EC2 instances
+
+  SnsEmail:
+    Type: String
+    Description: The email address that receives SNS notifications
+
+Mappings:
+  RegionMapping:
+    ap-south-1: { '64': ami-47205e28 }
+    eu-west-2: { '64': ami-ed100689 }
+    eu-west-1: { '64': ami-d7b9a2b1 }
+    ap-northeast-2: { '64': ami-e21cc38c }
+    ap-northeast-1: { '64': ami-3bd3c45c }
+    sa-east-1: { '64': ami-87dab1eb }
+    ca-central-1: { '64': ami-a7aa15c3 }
+    ap-southeast-1: { '64': ami-77af2014 }
+    ap-southeast-2: { '64': ami-10918173 }
+    eu-central-1: { '64': ami-82be18ed }
+    us-east-1: { '64': ami-a4c7edb2 }
+    us-east-2: { '64': ami-8a7859ef }
+    us-west-1: { '64': ami-327f5352 }
+    us-west-2: { '64': ami-6df1e514 }
+
+Resources:
+  Topic:
+    Type: AWS::SNS::Topic
+
+  Subscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Endpoint: !Ref SnsEmail
+      Protocol: email
+      TopicArn: !Ref Topic
+
+  Policy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Resource: "*"
+          Action:
+          - autoscaling:CompleteLifecycleAction
+          - sns:Publish
+
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/AmazonSSMFullAccess
+      - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      - !Ref Policy
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action: sts:AssumeRole
+
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
+      - !Ref Policy
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+          Action: sts:AssumeRole
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref InstanceRole
+
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Grants SSH access to the specified CidrIp
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref Ec2IngressCidrIp
+
+  LaunchConfiguration:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      AssociatePublicIpAddress: true
+      IamInstanceProfile: !GetAtt InstanceProfile.Arn
+      ImageId: !FindInMap [ RegionMapping, !Ref 'AWS::Region', '64' ]
+      InstanceType: t2.nano
+      KeyName: !Ref Ec2KeyName
+      SecurityGroups: [ !GetAtt SecurityGroup.GroupId ]
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          sudo yum install amazon-ssm-agent -y
+          sudo /sbin/start amazon-ssm-agent
+
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier: [!Ref Ec2Subnet]
+      DesiredCapacity: 2
+      LaunchConfigurationName: !Ref LaunchConfiguration
+      MaxSize: 3
+      MinSize: 1
+
+  LifecycleHook:
+    Type: AWS::AutoScaling::LifecycleHook
+    Properties:
+      AutoScalingGroupName: !Ref AutoScalingGroup
+      LifecycleTransition: autoscaling:EC2_INSTANCE_TERMINATING
+
+  Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: Private
+      VersioningConfiguration:
+        Status: Suspended
+
+  Document:
+    Type: AWS::SSM::Document
+    Properties:
+      Content: !Sub |
+        {
+          "schemaVersion": "1.2",
+          "description": "Backup logs to S3",
+          "parameters": {},
+          "runtimeConfig": {
+            "aws:runShellScript": {
+              "properties": [
+                {
+                  "id": "0.aws:runShellScript",
+                  "runCommand": [
+                    "",
+                    "ASGNAME='${AutoScalingGroup}'",
+                    "LIFECYCLEHOOKNAME='${LifecycleHook}'",
+                    "BACKUPDIRECTORY='/var/log'",
+                    "S3BUCKET='${Bucket}'",
+                    "SNSTARGET='${Topic}'",
+                    "INSTANCEID=$(curl http://169.254.169.254/latest/meta-data/instance-id)",
+                    "REGION=$(curl http://169.254.169.254/latest/meta-data/placement/availability-zone)",
+                    "REGION=${!REGION::-1}",
+                    "HOOKRESULT='CONTINUE'",
+                    "MESSAGE=''",
+                    "",
+                    "tar -cf /tmp/${!INSTANCEID}.tar $BACKUPDIRECTORY &> /tmp/backup",
+                    "if [ $? -ne 0 ]",
+                    "then",
+                    "   MESSAGE=$(cat /tmp/backup)",
+                    "else",
+                    "   aws s3 cp /tmp/${!INSTANCEID}.tar s3://${!S3BUCKET}/${!INSTANCEID}/ &> /tmp/backup",
+                    "       MESSAGE=$(cat /tmp/backup)",
+                    "fi",
+                    "",
+                    "aws sns publish --subject 'ASG Backup' --message \"$MESSAGE\"  --target-arn ${!SNSTARGET} --region ${!REGION}",
+                    "aws autoscaling complete-lifecycle-action --lifecycle-hook-name ${!LIFECYCLEHOOKNAME} --auto-scaling-group-name ${!ASGNAME} --lifecycle-action-result ${!HOOKRESULT} --instance-id ${!INSTANCEID}  --region ${!REGION}"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+
+  Function:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code: lambda_backup.py
+      Handler: lambda_backup.lambda_handler
+      Role: !GetAtt LambdaRole.Arn
+      Runtime: python2.7
+      Environment:
+        Variables:
+          DOCUMENT_NAME: !Ref Document
+
+  Permission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: "lambda:InvokeFunction"
+      FunctionName: !GetAtt Function.Arn
+      Principal: events.amazonaws.com
+
+  Rule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventPattern: !Sub |
+        {
+          "source": [ "aws.autoscaling" ],
+          "detail": {
+            "LifecycleTransition": ["autoscaling:EC2_INSTANCE_TERMINATING"]
+          }
+        }
+      Targets:
+      - Arn: !GetAtt Function.Arn
+        Id: target
