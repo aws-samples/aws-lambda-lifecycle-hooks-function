@@ -81,14 +81,15 @@ def check_command(command_id, instance_id):
             Details=False
             )
         if check_response(response_iterator):
-            response_iterator_status = response_iterator['CommandInvocations'][0]['Status']
-            if response_iterator_status != 'Pending':
-                if response_iterator_status == 'InProgress' or response_iterator_status == 'Success':
-                    logging.info( "Status: %s", response_iterator_status)
-                    return True
-                else:
-                    logging.error("ERROR: status: %s", response_iterator)
-                    return False
+            if response_iterator['CommandInvocations']:
+              response_iterator_status = response_iterator['CommandInvocations'][0]['Status']
+              if response_iterator_status != 'Pending':
+                  if response_iterator_status == 'InProgress' or response_iterator_status == 'Success':
+                      logging.info( "Status: %s", response_iterator_status)
+                      return True
+                  else:
+                      logging.error("ERROR: status: %s", response_iterator)
+                      return False
         time.sleep(timewait)
         timewait += timewait
 
