@@ -205,7 +205,7 @@ The Lambda function uses modules included in the Python 2.7 Standard Library and
 
 4)    For Name, type “lambda_backup” and for Runtime, choose Python 2.7.
 
-5)    For Lambda function code, paste the Lambda function from the [link] GitHub repository.
+5)    For Lambda function code, paste the [Lambda function](../master/lambda_backup.py) from the GitHub repository.
 
 6)    Choose Choose an existing role.
 
